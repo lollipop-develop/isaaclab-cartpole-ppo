@@ -1,0 +1,22 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# --- Training outputs ---
+runs/
+*.pt
+*.pth
+*.ckpt
+
+# --- IsaacLab / runtime artifacts ---
+.server.sock
+*.log
+nohup.out
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
