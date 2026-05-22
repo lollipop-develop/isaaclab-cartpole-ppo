@@ -108,8 +108,10 @@ play:
 
 kill-server:
 	@# Isaac Sim absorbs SIGTERM/SIGINT in some code paths — use SIGKILL.
-	-pkill -9 -f "server.py --socket $(SOCKET)" || true
-	-pkill -9 -f "isaaclab.sh -p server.py" || true
+	@# The .* matches whether or not --headless sits between server.py and
+	@# --socket; this single pattern covers both the python process and the
+	@# isaaclab.sh wrapper (both command lines contain server.py ... --socket).
+	-pkill -9 -f "server.py.*--socket $(SOCKET)" || true
 	-rm -f $(SOCKET)
 	@echo "[make] killed server processes and removed $(SOCKET)"
 
