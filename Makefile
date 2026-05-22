@@ -21,6 +21,7 @@ ACTIVATE       := source $(CONDA_SH) && conda activate $(CONDA_ENV)
 SOCKET         ?= .server.sock
 
 # --- server / training defaults ----------------------------------------------
+ENV            ?= cartpole       # cartpole | double
 NUM_ENVS       ?= 256
 MAX_ITERS      ?= 200
 ROLLOUT_STEPS  ?= 128
@@ -43,6 +44,7 @@ HEADLESS_FLAG  := $(if $(HEADLESS),--headless,)
 help:
 	@echo "Persistent server workflow:"
 	@echo "  make env              - boot Isaac Sim + server (foreground, GUI on)"
+	@echo "  make env ENV=double   - boot the server with the double-pendulum env"
 	@echo "  make env HEADLESS=1   - boot server headless"
 	@echo "  make train            - send a train command to running server"
 	@echo "  make play             - send a play command to running server"
@@ -57,7 +59,7 @@ help:
 	@echo "  make tensorboard      - tensorboard on runs/"
 	@echo "  make clean | clean-runs | clean-pyc"
 	@echo ""
-	@echo "Vars: NUM_ENVS MAX_ITERS ROLLOUT_STEPS SEED RUN_NAME RESUME"
+	@echo "Vars: ENV NUM_ENVS MAX_ITERS ROLLOUT_STEPS SEED RUN_NAME RESUME"
 	@echo "      CHECKPOINT PLAY_STEPS PLAY_DET HEADLESS"
 	@echo "      ISAACLAB CONDA_ENV SOCKET"
 
@@ -71,7 +73,7 @@ env:
 	    echo "       run 'make kill-server' first if needed."; \
 	fi
 	$(ACTIVATE) && $(ISAACLAB) -p server.py $(HEADLESS_FLAG) \
-	    --socket $(SOCKET) --num_envs $(NUM_ENVS) --seed $(SEED)
+	    --socket $(SOCKET) --num_envs $(NUM_ENVS) --seed $(SEED) --env $(ENV)
 
 env-headless:
 	$(MAKE) env HEADLESS=1
@@ -117,12 +119,12 @@ kill-server:
 
 smoke:
 	$(ACTIVATE) && $(ISAACLAB) -p train.py --headless \
-	    --num_envs 64 --max_iters 5 --rollout_steps 64
+	    --num_envs 64 --max_iters 5 --rollout_steps 64 --env $(ENV)
 
 train-once:
 	$(ACTIVATE) && $(ISAACLAB) -p train.py $(HEADLESS_FLAG) \
 	    --num_envs $(NUM_ENVS) --max_iters $(MAX_ITERS) \
-	    --rollout_steps $(ROLLOUT_STEPS) --seed $(SEED) \
+	    --rollout_steps $(ROLLOUT_STEPS) --seed $(SEED) --env $(ENV) \
 	    $(if $(RUN_NAME),--run_name $(RUN_NAME),)
 
 play-once:
@@ -137,7 +139,7 @@ play-once:
 	echo "[make] using checkpoint: $$CKPT"; \
 	$(ACTIVATE) && $(ISAACLAB) -p play.py $(HEADLESS_FLAG) \
 	    --checkpoint "$$CKPT" --num_envs $(NUM_ENVS) --num_steps $(PLAY_STEPS) \
-	    $(if $(PLAY_DET),--deterministic,)
+	    --env $(ENV) $(if $(PLAY_DET),--deterministic,)
 
 # =====================================================================
 # Utility
