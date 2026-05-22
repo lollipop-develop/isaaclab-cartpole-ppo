@@ -21,7 +21,8 @@ ACTIVATE       := source $(CONDA_SH) && conda activate $(CONDA_ENV)
 SOCKET         ?= .server.sock
 
 # --- server / training defaults ----------------------------------------------
-ENV            ?= cartpole       # cartpole | double
+# Environment to load: cartpole | double
+ENV            ?= cartpole
 NUM_ENVS       ?= 256
 MAX_ITERS      ?= 200
 ROLLOUT_STEPS  ?= 128
