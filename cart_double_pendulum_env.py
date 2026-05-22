@@ -56,6 +56,9 @@ class CartDoublePendulumEnvCfg(DirectRLEnvCfg):
     pendulum_dof_name = "pole_to_pendulum"
 
     # ---- scene (num_envs overridden from CLI) ----
+    # NOTE: no clone_in_fabric=True here (unlike cartpole_env.py). Isaac Lab's
+    # reference cart_double_pendulum env omits it; we match the reference to
+    # avoid fabric-cloning issues with the double-pendulum asset.
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=128, env_spacing=4.0, replicate_physics=True
     )
