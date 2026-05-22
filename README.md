@@ -2,7 +2,7 @@
 
 A minimal cartpole RL playground built on **NVIDIA Isaac Lab**, with a small **PPO** implementation adapted from [nikhilbarhate99/PPO-PyTorch](https://github.com/nikhilbarhate99/PPO-PyTorch) and vectorized to use Isaac Lab's parallel envs.
 
-The environment is configured for **swing-up** by default (pole starts hanging) but can be switched to a balance task in a few lines.
+Two environments are included: a single cartpole (`cartpole`) and an underactuated cart + double pendulum (`double`), both configured for **swing-up**. Pick one at server-startup time with `ENV=...`.
 
 A **persistent-server** workflow lets you boot Isaac Sim once and run many `train` / `play` commands against the same loaded simulator — Ctrl+C interrupts a single command without tearing the simulator down.
 
@@ -11,6 +11,8 @@ A **persistent-server** workflow lets you boot Isaac Sim once and run many `trai
 | File | Purpose |
 |---|---|
 | `cartpole_env.py` | `DirectRLEnv` subclass with banner-marked **STATE** and **REWARD** sections |
+| `cart_double_pendulum_env.py` | Underactuated cart + double-pendulum `DirectRLEnv` (swing-up) |
+| `env_registry.py` | Maps env names (`cartpole`, `double`) to their classes |
 | `ppo.py` | PPO algorithm (ActorCritic + RolloutBuffer, vectorized for N parallel envs) |
 | `server.py` | Long-running process: boots Isaac Sim once, listens on a Unix socket |
 | `client.py` | Thin stdlib-only client that sends JSON commands to the server |
@@ -30,10 +32,14 @@ This repo does *not* ship Isaac Lab itself; install it separately following the 
 
 ### 1. Boot the persistent server (terminal A)
 ```bash
-make env                  # GUI viewport
+make env                  # single cartpole, GUI viewport
+make env ENV=double       # cart + double pendulum
 make env HEADLESS=1       # no GUI (faster startup, headless training)
 make env NUM_ENVS=512     # more parallel envs
 ```
+
+The server loads ONE environment for its lifetime. To switch envs, stop the
+server (Ctrl+C or `make kill-server`) and boot it again with a different `ENV`.
 Wait until you see `[server] listening on .server.sock`.
 
 ### 2. Train (terminal B)
