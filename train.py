@@ -5,7 +5,8 @@ Run with:
     cd ~/Desktop/cartpole_ws
     ~/IsaacLab/isaaclab.sh -p train.py --headless
 
-Edit hyperparameters in the HYPERPARAMS block below.
+PPO hyperparameters are per-env: edit the HYPERPARAMS dict in ppo_cartpole.py
+or ppo_double.py.
 """
 
 from __future__ import annotations
@@ -43,30 +44,18 @@ import torch  # noqa: E402
 from torch.utils.tensorboard import SummaryWriter  # noqa: E402
 
 from env_registry import ENVS  # noqa: E402
-from ppo import PPO  # noqa: E402
 
 
-# =====================================================================
-# ============================ HYPERPARAMS ============================
-LR_ACTOR = 3e-4
-LR_CRITIC = 1e-3
-GAMMA = 0.99
-K_EPOCHS = 40
-EPS_CLIP = 0.2
-ACTION_STD_INIT = 0.6
-ACTION_STD_DECAY_RATE = 0.05
-MIN_ACTION_STD = 0.10
-ACTION_STD_DECAY_FREQ = 20   # iters between std decays
-SAVE_FREQ = 25               # iters between checkpoint saves
-LOG_FREQ = 1                 # iters between stdout / tensorboard lines
-# =====================================================================
+# PPO hyperparameters are per-env — see the HYPERPARAMS dict in ppo_cartpole.py
+# / ppo_double.py. LOG_FREQ below is display-only and not env-specific.
+LOG_FREQ = 1  # iters between stdout / tensorboard lines
 
 
 def main():
     torch.manual_seed(args_cli.seed)
 
-    # ---- env ----
-    env_cls, cfg_cls = ENVS[args_cli.env]
+    # ---- env (and its PPO module) ----
+    env_cls, cfg_cls, ppo_mod = ENVS[args_cli.env]
     cfg = cfg_cls()
     cfg.scene.num_envs = args_cli.num_envs
     env = env_cls(cfg=cfg, render_mode=None)
@@ -74,16 +63,17 @@ def main():
     print(f"[train] env={args_cli.env}  num_envs={args_cli.num_envs}  device={device}  "
           f"obs={cfg.observation_space}  act={cfg.action_space}", flush=True)
 
-    # ---- PPO agent ----
-    ppo = PPO(
+    # ---- PPO agent (hyperparameters from the env's ppo module) ----
+    hp = ppo_mod.HYPERPARAMS
+    ppo = ppo_mod.PPO(
         state_dim=cfg.observation_space,
         action_dim=cfg.action_space,
-        lr_actor=LR_ACTOR,
-        lr_critic=LR_CRITIC,
-        gamma=GAMMA,
-        K_epochs=K_EPOCHS,
-        eps_clip=EPS_CLIP,
-        action_std_init=ACTION_STD_INIT,
+        lr_actor=hp["lr_actor"],
+        lr_critic=hp["lr_critic"],
+        gamma=hp["gamma"],
+        K_epochs=hp["K_epochs"],
+        eps_clip=hp["eps_clip"],
+        action_std_init=hp["action_std_init"],
         device=device,
     )
 
@@ -130,8 +120,8 @@ def main():
 
         ppo.update()
 
-        if (it + 1) % ACTION_STD_DECAY_FREQ == 0:
-            ppo.decay_action_std(ACTION_STD_DECAY_RATE, MIN_ACTION_STD)
+        if (it + 1) % hp["action_std_decay_freq"] == 0:
+            ppo.decay_action_std(hp["action_std_decay_rate"], hp["min_action_std"])
 
         if (it + 1) % LOG_FREQ == 0:
             mean_ret = sum(ep_returns_iter) / max(len(ep_returns_iter), 1)
@@ -151,7 +141,7 @@ def main():
             writer.add_scalar("ppo/action_std", ppo.action_std, it)
             writer.add_scalar("perf/steps_per_sec", sps, it)
 
-        if (it + 1) % SAVE_FREQ == 0:
+        if (it + 1) % hp["save_freq"] == 0:
             ckpt = os.path.join(run_dir, f"policy_{it+1:04d}.pt")
             ppo.save(ckpt)
             print(f"[train] saved {ckpt}")

@@ -12,8 +12,9 @@ A **persistent-server** workflow lets you boot Isaac Sim once and run many `trai
 |---|---|
 | `cartpole_env.py` | `DirectRLEnv` subclass with banner-marked **STATE** and **REWARD** sections |
 | `cart_double_pendulum_env.py` | Underactuated cart + double-pendulum `DirectRLEnv` (swing-up) |
-| `env_registry.py` | Maps env names (`cartpole`, `double`) to their classes |
-| `ppo.py` | PPO algorithm (ActorCritic + RolloutBuffer, vectorized for N parallel envs) |
+| `env_registry.py` | Maps each env name to its env class, cfg class, and PPO module |
+| `ppo_cartpole.py` | PPO algorithm + `HYPERPARAMS` for the single cartpole |
+| `ppo_double.py` | PPO algorithm + `HYPERPARAMS` for the double pendulum |
 | `server.py` | Long-running process: boots Isaac Sim once, listens on a Unix socket |
 | `client.py` | Thin stdlib-only client that sends JSON commands to the server |
 | `train.py` / `play.py` | Standalone runners (boot Isaac Sim per call) — kept for one-shot use |
@@ -104,7 +105,8 @@ Each call boots Isaac Sim from scratch (~30 s).
 ## Algorithm notes
 
 - **PPO** uses Monte-Carlo returns (no GAE) to stay close to the reference implementation. Cartpole converges fine without GAE; longer-horizon tasks would benefit from adding it.
-- **Continuous action only** (1-D force on the cart slider). The policy outputs a `tanh`-bounded mean and adds Gaussian noise with a decaying std (`action_std_decay_*` in `server.py`).
+- **Continuous action only** (1-D force on the cart slider). The policy outputs a `tanh`-bounded mean and adds Gaussian noise with a decaying std.
+- **Per-env PPO** — `ppo_cartpole.py` and `ppo_double.py` are independent copies of the algorithm, each with its own `HYPERPARAMS` dict (lr, gamma, K_epochs, `action_std_decay_*`, etc.). Edit one without affecting the other; `--env` selects which.
 - **Vectorized rollout buffer** stores tensors of shape `(T, N, …)` where T is the rollout horizon and N is `num_envs`. Discounted returns are computed per-env so envs that reset mid-rollout don't bleed across episodes.
 - **No `gymnasium` install needed** — Isaac Lab's `DirectRLEnv` satisfies the interface internally; observations and rewards are torch tensors on the GPU.
 

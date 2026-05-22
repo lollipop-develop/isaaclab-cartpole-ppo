@@ -1,4 +1,6 @@
-"""PPO adapted from https://github.com/nikhilbarhate99/PPO-PyTorch (continuous action only).
+"""PPO for the single cartpole env.
+
+Adapted from https://github.com/nikhilbarhate99/PPO-PyTorch (continuous action).
 
 Differences from the original:
   * Vectorized: every quantity in the rollout buffer has a leading (num_envs,)
@@ -10,6 +12,9 @@ Differences from the original:
 Algorithm itself (Gaussian policy with tanh-mean, MC returns w/ normalization,
 clipped surrogate objective, K epochs per update) is unchanged from the
 reference.
+
+This file is the cartpole-only copy of the PPO code. ``ppo_double.py`` is the
+separate copy for the double-pendulum env — edit each independently.
 """
 
 from __future__ import annotations
@@ -17,6 +22,24 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
+
+
+# =====================================================================
+# Per-env PPO hyperparameters for the SINGLE CARTPOLE.
+# Edit these to tune cartpole training without affecting the double env.
+# =====================================================================
+HYPERPARAMS = {
+    "lr_actor": 3e-4,
+    "lr_critic": 1e-3,
+    "gamma": 0.99,
+    "K_epochs": 40,
+    "eps_clip": 0.2,
+    "action_std_init": 0.6,
+    "action_std_decay_rate": 0.05,
+    "min_action_std": 0.10,
+    "action_std_decay_freq": 20,  # iters between action_std decays
+    "save_freq": 25,              # iters between checkpoint saves
+}
 
 
 class RolloutBuffer:

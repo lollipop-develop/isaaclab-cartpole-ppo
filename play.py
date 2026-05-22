@@ -27,17 +27,17 @@ simulation_app = app_launcher.app
 import torch  # noqa: E402
 
 from env_registry import ENVS  # noqa: E402
-from ppo import PPO  # noqa: E402
 
 
 def main():
-    env_cls, cfg_cls = ENVS[args_cli.env]
+    env_cls, cfg_cls, ppo_mod = ENVS[args_cli.env]
     cfg = cfg_cls()
     cfg.scene.num_envs = args_cli.num_envs
     env = env_cls(cfg=cfg, render_mode=None)
     device = env.device
 
-    ppo = PPO(
+    # Throwaway hyperparameters — play only loads weights, never trains.
+    ppo = ppo_mod.PPO(
         state_dim=cfg.observation_space,
         action_dim=cfg.action_space,
         lr_actor=0.0, lr_critic=0.0,

@@ -43,12 +43,11 @@ simulation_app = app_launcher.app
 import torch  # noqa: E402
 
 from env_registry import ENVS  # noqa: E402
-from ppo import PPO  # noqa: E402
 
 torch.manual_seed(args_cli.seed)
 
-# ---- Build env once ----
-_env_cls, _cfg_cls = ENVS[args_cli.env]
+# ---- Build env once (each env carries its own PPO module) ----
+_env_cls, _cfg_cls, _ppo_mod = ENVS[args_cli.env]
 cfg = _cfg_cls()
 cfg.scene.num_envs = args_cli.num_envs
 env = _env_cls(cfg=cfg, render_mode=None)
@@ -92,13 +91,14 @@ def client_alive(conn: socket.socket) -> bool:
         return False
 
 
-def make_ppo(action_std_init: float, lr_actor=3e-4, lr_critic=1e-3,
-             gamma=0.99, K_epochs=40, eps_clip=0.2) -> PPO:
-    return PPO(
+def make_ppo(action_std_init: float):
+    """Build this env's PPO agent. lr/gamma/K/eps come from the env's HYPERPARAMS."""
+    hp = _ppo_mod.HYPERPARAMS
+    return _ppo_mod.PPO(
         state_dim=cfg.observation_space,
         action_dim=cfg.action_space,
-        lr_actor=lr_actor, lr_critic=lr_critic,
-        gamma=gamma, K_epochs=K_epochs, eps_clip=eps_clip,
+        lr_actor=hp["lr_actor"], lr_critic=hp["lr_critic"],
+        gamma=hp["gamma"], K_epochs=hp["K_epochs"], eps_clip=hp["eps_clip"],
         action_std_init=action_std_init, device=device,
     )
 
@@ -107,13 +107,16 @@ def make_ppo(action_std_init: float, lr_actor=3e-4, lr_critic=1e-3,
 # Command handlers
 # =====================================================================
 def cmd_train(conn: socket.socket, args: dict) -> None:
+    # Defaults for env hyperparameters come from the env's HYPERPARAMS dict;
+    # a client may still override any of them per-command.
+    hp = _ppo_mod.HYPERPARAMS
     max_iters = int(args.get("max_iters", 200))
     rollout_steps = int(args.get("rollout_steps", 128))
-    action_std_init = float(args.get("action_std_init", 0.6))
-    action_std_decay_rate = float(args.get("action_std_decay_rate", 0.05))
-    min_action_std = float(args.get("min_action_std", 0.10))
-    action_std_decay_freq = int(args.get("action_std_decay_freq", 20))
-    save_freq = int(args.get("save_freq", 25))
+    action_std_init = float(args.get("action_std_init", hp["action_std_init"]))
+    action_std_decay_rate = float(args.get("action_std_decay_rate", hp["action_std_decay_rate"]))
+    min_action_std = float(args.get("min_action_std", hp["min_action_std"]))
+    action_std_decay_freq = int(args.get("action_std_decay_freq", hp["action_std_decay_freq"]))
+    save_freq = int(args.get("save_freq", hp["save_freq"]))
     resume_from = args.get("resume_from")
     run_name = args.get("run_name") or time.strftime("%Y%m%d-%H%M%S")
 
