@@ -31,6 +31,8 @@ parser = argparse.ArgumentParser(description="Persistent Isaac Lab + PPO server.
 parser.add_argument("--socket", default=os.path.join(_here, ".server.sock"))
 parser.add_argument("--num_envs", type=int, default=256)
 parser.add_argument("--seed", type=int, default=42)
+parser.add_argument("--env", default="cartpole", choices=["cartpole", "double"],
+                    help="Which environment to load for this server session.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -40,18 +42,19 @@ simulation_app = app_launcher.app
 # ---- Now safe to import heavy deps ----
 import torch  # noqa: E402
 
-from cartpole_env import CartpoleEnv, CartpoleEnvCfg  # noqa: E402
+from env_registry import ENVS  # noqa: E402
 from ppo import PPO  # noqa: E402
 
 torch.manual_seed(args_cli.seed)
 
 # ---- Build env once ----
-cfg = CartpoleEnvCfg()
+_env_cls, _cfg_cls = ENVS[args_cli.env]
+cfg = _cfg_cls()
 cfg.scene.num_envs = args_cli.num_envs
-env = CartpoleEnv(cfg=cfg, render_mode=None)
+env = _env_cls(cfg=cfg, render_mode=None)
 device = env.device
 print(
-    f"[server] env ready  num_envs={args_cli.num_envs}  device={device}  "
+    f"[server] env={args_cli.env} ready  num_envs={args_cli.num_envs}  device={device}  "
     f"obs={cfg.observation_space}  act={cfg.action_space}  "
     f"episode_s={cfg.episode_length_s}",
     flush=True,
