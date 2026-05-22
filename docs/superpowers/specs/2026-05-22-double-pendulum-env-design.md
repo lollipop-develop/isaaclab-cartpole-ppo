@@ -64,7 +64,7 @@ banner-marked **STATE** and **REWARD** sections so it is easy to edit.
 - Task: **swing-up**.
   - Reset: links hang down — θ₁ sampled near π, θ₂ sampled near 0
     (link-2 aligned with link-1), both with small uniform noise; cart near 0.
-  - `episode_length_s` ≈ 8–10 s.
+  - `episode_length_s = 8.0` (matches the single cartpole swing-up; tunable).
   - No angle-based termination (links sweep the full range). Termination
     only on cart out-of-bounds (`max_cart_pos`) or timeout. Controlled by a
     `fail_*` config field set huge, same idiom as the single cartpole.
