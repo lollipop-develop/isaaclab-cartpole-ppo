@@ -21,6 +21,8 @@ parser.add_argument("--max_iters", type=int, default=200, help="Number of PPO up
 parser.add_argument("--rollout_steps", type=int, default=128, help="Env steps per update (per env).")
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--run_name", type=str, default=None, help="Subdir under runs/. Defaults to timestamp.")
+parser.add_argument("--env", default="cartpole", choices=["cartpole", "double"],
+                    help="Which environment to train on.")
 parser.add_argument("--play_after", action="store_true",
                     help="After training, roll out the freshly trained policy in the same process (no app restart).")
 parser.add_argument("--play_steps", type=int, default=1500,
@@ -40,7 +42,7 @@ import time  # noqa: E402
 import torch  # noqa: E402
 from torch.utils.tensorboard import SummaryWriter  # noqa: E402
 
-from cartpole_env import CartpoleEnv, CartpoleEnvCfg  # noqa: E402
+from env_registry import ENVS  # noqa: E402
 from ppo import PPO  # noqa: E402
 
 
@@ -64,11 +66,12 @@ def main():
     torch.manual_seed(args_cli.seed)
 
     # ---- env ----
-    cfg = CartpoleEnvCfg()
+    env_cls, cfg_cls = ENVS[args_cli.env]
+    cfg = cfg_cls()
     cfg.scene.num_envs = args_cli.num_envs
-    env = CartpoleEnv(cfg=cfg, render_mode=None)
+    env = env_cls(cfg=cfg, render_mode=None)
     device = env.device
-    print(f"[train] num_envs={args_cli.num_envs}  device={device}  "
+    print(f"[train] env={args_cli.env}  num_envs={args_cli.num_envs}  device={device}  "
           f"obs={cfg.observation_space}  act={cfg.action_space}", flush=True)
 
     # ---- PPO agent ----
