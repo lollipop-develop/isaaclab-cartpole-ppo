@@ -41,6 +41,7 @@ simulation_app = app_launcher.app
 
 # ---- Now safe to import heavy deps ----
 import torch  # noqa: E402
+from torch.utils.tensorboard import SummaryWriter  # noqa: E402
 
 from env_registry import ENVS  # noqa: E402
 
@@ -134,6 +135,9 @@ def cmd_train(conn: socket.socket, args: dict) -> None:
 
     send(conn, f"[server] training: max_iters={max_iters} rollout={rollout_steps} run_name={run_name}")
 
+    writer = SummaryWriter(run_dir)
+    send(conn, f"[server] tensorboard logs: {run_dir}")
+
     obs_dict, _ = env.reset()
     state = obs_dict["policy"]
     ep_r = torch.zeros(args_cli.num_envs, device=device)
@@ -173,6 +177,12 @@ def cmd_train(conn: socket.socket, args: dict) -> None:
         mean_ret = sum(ep_returns) / max(len(ep_returns), 1)
         mean_len = sum(ep_lengths) / max(len(ep_lengths), 1)
         sps = total_steps / (time.time() - t0 + 1e-9)
+        # Log every iter so tensorboard captures this iter even if the client disconnects next.
+        writer.add_scalar("rollout/ep_return_mean", mean_ret, it)
+        writer.add_scalar("rollout/ep_length_mean", mean_len, it)
+        writer.add_scalar("rollout/n_episodes", len(ep_returns), it)
+        writer.add_scalar("ppo/action_std", ppo.action_std, it)
+        writer.add_scalar("perf/steps_per_sec", sps, it)
         if not send(
             conn,
             f"iter {it+1:4d}/{max_iters}  "
@@ -181,6 +191,7 @@ def cmd_train(conn: socket.socket, args: dict) -> None:
             f"sps={sps:7.0f}",
         ):
             print(f"[server] client gone at iter {it+1}, aborting train", flush=True)
+            writer.close()
             return
 
         if (it + 1) % save_freq == 0:
@@ -190,11 +201,13 @@ def cmd_train(conn: socket.socket, args: dict) -> None:
 
         if not client_alive(conn):
             print(f"[server] client disconnected at iter {it+1}, aborting train", flush=True)
+            writer.close()
             return
 
     final = os.path.join(run_dir, "policy_final.pt")
     ppo.save(final)
     send(conn, f"[server] saved {final}")
+    writer.close()
 
 
 def cmd_play(conn: socket.socket, args: dict) -> None:
