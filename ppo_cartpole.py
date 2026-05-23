@@ -32,6 +32,7 @@ HYPERPARAMS = {
     "lr_actor": 3e-4,
     "lr_critic": 1e-3,
     "gamma": 0.99,
+    "gae_lambda": 0.95,           # unused here (cartpole uses MC returns); kept for API parity with ppo_double
     "K_epochs": 40,
     "eps_clip": 0.2,
     "action_std_init": 0.6,
@@ -121,6 +122,7 @@ class PPO:
         eps_clip: float,
         action_std_init: float,
         device: torch.device,
+        gae_lambda: float = 0.95,  # accepted for API parity with ppo_double; unused here
     ):
         self.gamma = gamma
         self.eps_clip = eps_clip
@@ -159,7 +161,13 @@ class PPO:
         self.buffer.state_values.append(state_val)
         return action
 
-    def update(self):
+    def update(self, next_state: torch.Tensor | None = None):
+        """PPO update with Monte-Carlo returns.
+
+        ``next_state`` is accepted for API parity with ppo_double.update() but
+        ignored here — cartpole sticks with the original MC-returns formulation.
+        """
+        del next_state  # unused
         # Stack per-step lists -> (T, N, ...)
         rewards_buf = torch.stack(self.buffer.rewards)        # (T, N)
         terminals_buf = torch.stack(self.buffer.is_terminals)  # (T, N) bool

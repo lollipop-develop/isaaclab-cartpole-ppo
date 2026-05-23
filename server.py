@@ -100,6 +100,7 @@ def make_ppo(action_std_init: float):
         lr_actor=hp["lr_actor"], lr_critic=hp["lr_critic"],
         gamma=hp["gamma"], K_epochs=hp["K_epochs"], eps_clip=hp["eps_clip"],
         action_std_init=action_std_init, device=device,
+        gae_lambda=hp["gae_lambda"],
     )
 
 
@@ -162,7 +163,9 @@ def cmd_train(conn: socket.socket, args: dict) -> None:
             state = obs_dict["policy"]
             total_steps += args_cli.num_envs
 
-        ppo.update()
+        # `state` here is the env's obs AFTER the last buffered step — used by
+        # GAE in ppo_double.PPO.update() to bootstrap V(s_T); ignored by ppo_cartpole.
+        ppo.update(next_state=state)
 
         if (it + 1) % action_std_decay_freq == 0:
             ppo.decay_action_std(action_std_decay_rate, min_action_std)

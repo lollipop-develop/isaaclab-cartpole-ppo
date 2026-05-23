@@ -75,6 +75,7 @@ def main():
         eps_clip=hp["eps_clip"],
         action_std_init=hp["action_std_init"],
         device=device,
+        gae_lambda=hp["gae_lambda"],
     )
 
     # ---- logging ----
@@ -118,7 +119,9 @@ def main():
             state = obs_dict["policy"]
             total_env_steps += args_cli.num_envs
 
-        ppo.update()
+        # `state` here is the env's obs AFTER the last buffered step — used by
+        # GAE in ppo_double.PPO.update() to bootstrap V(s_T); ignored by ppo_cartpole.
+        ppo.update(next_state=state)
 
         if (it + 1) % hp["action_std_decay_freq"] == 0:
             ppo.decay_action_std(hp["action_std_decay_rate"], hp["min_action_std"])

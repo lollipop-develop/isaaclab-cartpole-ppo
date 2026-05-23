@@ -34,6 +34,7 @@ HYPERPARAMS = {
     "lr_actor": 3e-4,
     "lr_critic": 1e-3,
     "gamma": 0.99,
+    "gae_lambda": 0.95,           # GAE bias-variance tradeoff (1.0 = MC, 0.0 = TD)
     "K_epochs": 40,
     "eps_clip": 0.2,
     "action_std_init": 0.6,
@@ -123,8 +124,10 @@ class PPO:
         eps_clip: float,
         action_std_init: float,
         device: torch.device,
+        gae_lambda: float = 0.95,
     ):
         self.gamma = gamma
+        self.gae_lambda = gae_lambda
         self.eps_clip = eps_clip
         self.K_epochs = K_epochs
         self.action_std = action_std_init
@@ -161,43 +164,64 @@ class PPO:
         self.buffer.state_values.append(state_val)
         return action
 
-    def update(self):
+    def update(self, next_state: torch.Tensor | None = None):
+        """PPO update with GAE(λ) advantages.
+
+        ``next_state`` is the env's observation right AFTER the last buffered
+        step; its value bootstraps the GAE recursion at the rollout boundary.
+        If omitted, the bootstrap value defaults to 0 (higher variance for
+        rollouts that don't reach a terminal).
+        """
         # Stack per-step lists -> (T, N, ...)
         rewards_buf = torch.stack(self.buffer.rewards)        # (T, N)
         terminals_buf = torch.stack(self.buffer.is_terminals)  # (T, N) bool
+        values_buf = torch.stack(self.buffer.state_values)    # (T, N)
         T, N = rewards_buf.shape
 
-        # Per-env discounted Monte Carlo returns, reset at episode boundaries.
-        returns = torch.zeros_like(rewards_buf)
-        discounted = torch.zeros(N, device=self.device)
-        for t in reversed(range(T)):
-            # If env terminated at step t, the return at t is just r_t (chain breaks).
-            discounted = rewards_buf[t] + self.gamma * discounted * (~terminals_buf[t]).float()
-            returns[t] = discounted
+        # Bootstrap value at the rollout boundary: V(s_T).
+        if next_state is not None:
+            with torch.no_grad():
+                next_value = self.policy_old.critic(next_state).squeeze(-1)
+        else:
+            next_value = torch.zeros(N, device=self.device)
 
-        # Flatten (T, N, ...) -> (T*N, ...)
-        returns = returns.reshape(-1)
-        returns = (returns - returns.mean()) / (returns.std() + 1e-7)
+        # GAE(λ) backwards pass:
+        #   δ_t = r_t + γ V(s_{t+1}) (1 - d_t) - V(s_t)
+        #   A_t = δ_t + γ λ (1 - d_t) A_{t+1}
+        advantages = torch.zeros_like(rewards_buf)
+        gae = torch.zeros(N, device=self.device)
+        for t in reversed(range(T)):
+            nonterminal = (~terminals_buf[t]).float()
+            v_next = next_value if t == T - 1 else values_buf[t + 1]
+            delta = rewards_buf[t] + self.gamma * v_next * nonterminal - values_buf[t]
+            gae = delta + self.gamma * self.gae_lambda * nonterminal * gae
+            advantages[t] = gae
+
+        # Bootstrap targets for the value head.
+        returns = advantages + values_buf
+
+        # Flatten (T, N, ...) -> (T*N, ...). Whiten advantages ONLY (returns
+        # are bootstrap targets with a meaningful scale — don't normalize them).
+        advantages_flat = advantages.reshape(-1)
+        advantages_flat = (advantages_flat - advantages_flat.mean()) / (advantages_flat.std() + 1e-7)
+        returns_flat = returns.reshape(-1)
 
         old_states = torch.stack(self.buffer.states).reshape(T * N, -1)
         old_actions = torch.stack(self.buffer.actions).reshape(T * N, -1)
         old_logprobs = torch.stack(self.buffer.logprobs).reshape(T * N).detach()
-        old_state_values = torch.stack(self.buffer.state_values).reshape(T * N).detach()
-
-        advantages = returns.detach() - old_state_values
 
         for _ in range(self.K_epochs):
             logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
             ratios = torch.exp(logprobs - old_logprobs)
-            surr1 = ratios * advantages
-            surr2 = torch.clamp(ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip) * advantages
-            loss = -torch.min(surr1, surr2) + 0.5 * self.MseLoss(state_values, returns) - 0.01 * dist_entropy
+            surr1 = ratios * advantages_flat
+            surr2 = torch.clamp(ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip) * advantages_flat
+            loss = -torch.min(surr1, surr2) + 0.5 * self.MseLoss(state_values, returns_flat) - 0.01 * dist_entropy
 
             self.optimizer.zero_grad()
             loss.mean().backward()
             self.optimizer.step()
 
-        self.policy_old.load_state_dict(self.policy.state_dict())
+        self.policy_old.load_state_dict(self.policy.state_dict())  # update policy weight
         self.buffer.clear()
 
     def save(self, checkpoint_path: str):
