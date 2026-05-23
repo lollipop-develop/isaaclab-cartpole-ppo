@@ -35,11 +35,11 @@ HYPERPARAMS = {
     "lr_critic": 1e-3,
     "gamma": 0.99,
     "gae_lambda": 0.95,           # GAE bias-variance tradeoff (1.0 = MC, 0.0 = TD)
-    "K_epochs": 40,
+    "K_epochs": 10,
     "eps_clip": 0.2,
     "action_std_init": 0.6,
-    "action_std_decay_rate": 0.05,
-    "min_action_std": 0.10,
+    "action_std_decay_rate": 0.025,
+    "min_action_std": 0.20,
     "action_std_decay_freq": 20,  # iters between action_std decays
     "save_freq": 25,              # iters between checkpoint saves
 }
