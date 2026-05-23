@@ -39,7 +39,7 @@ class CartDoublePendulumEnvCfg(DirectRLEnvCfg):
     # ---- episode / sim ----
     decimation = 2
     episode_length_s = 8.0  # swing-up needs more time than balance
-    action_scale = 100.0  # [N] applied to the cart slider
+    action_scale = 250.0  # [N] applied to the cart slider (well under the 400 N actuator limit)
 
     # ---- spaces ----
     # observation_space MUST match the dim returned by _get_observations().

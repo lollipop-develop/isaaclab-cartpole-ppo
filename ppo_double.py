@@ -33,7 +33,7 @@ from torch.distributions import MultivariateNormal
 HYPERPARAMS = {
     "lr_actor": 3e-4,
     "lr_critic": 1e-3,
-    "gamma": 0.99,
+    "gamma": 0.995,               # extended horizon (~3.3s @ 60Hz) to match swing-up duration
     "gae_lambda": 0.95,           # GAE bias-variance tradeoff (1.0 = MC, 0.0 = TD)
     "K_epochs": 10,
     "eps_clip": 0.2,
@@ -74,15 +74,17 @@ class ActorCritic(nn.Module):
         self.device = device
         self.action_var = torch.full((action_dim,), action_std_init * action_std_init, device=device)
 
+        # Bigger network (128x128) than the cartpole copy — double-pendulum
+        # dynamics are harder to fit. BREAKING for pre-existing checkpoints.
         self.actor = nn.Sequential(
-            nn.Linear(state_dim, 64), nn.Tanh(),
-            nn.Linear(64, 64), nn.Tanh(),
-            nn.Linear(64, action_dim), nn.Tanh(),
+            nn.Linear(state_dim, 128), nn.Tanh(),
+            nn.Linear(128, 128), nn.Tanh(),
+            nn.Linear(128, action_dim), nn.Tanh(),
         )
         self.critic = nn.Sequential(
-            nn.Linear(state_dim, 64), nn.Tanh(),
-            nn.Linear(64, 64), nn.Tanh(),
-            nn.Linear(64, 1),
+            nn.Linear(state_dim, 128), nn.Tanh(),
+            nn.Linear(128, 128), nn.Tanh(),
+            nn.Linear(128, 1),
         )
 
     def set_action_std(self, new_action_std: float):
