@@ -64,7 +64,9 @@ class CartDoublePendulumEnvCfg(DirectRLEnvCfg):
     )
 
     # ---- reset / termination ----
-    max_cart_pos = 3.0  # cart out-of-bounds threshold [m]
+    # Widened from 3.0 -> 5.0 so the cart has room to pump energy into the
+    # pendulum during swing-up exploration.
+    max_cart_pos = 5.0  # cart out-of-bounds threshold [m]
 
     # Initial joint angles, multiplied by pi internally. At joint angle 0 the
     # links point UP (the asset is an *inverted* double pendulum).
@@ -171,10 +173,12 @@ class CartDoublePendulumEnv(DirectRLEnv):
         r_upright = torch.cos(pole_pos) + torch.cos(theta2_abs)
         both_up = (torch.cos(pole_pos) > 0.95) & (torch.cos(theta2_abs) > 0.95)
         r_at_top_slow = both_up.float() * (-0.1 * (pole_vel.pow(2) + pend_vel.pow(2)))
-        r_cart_center = -0.1 * cart_pos.pow(2)
-        r_cart_quiet = -0.005 * cart_vel.abs()
-        r_terminate = -10.0 * terminated
-        reward = r_upright + r_at_top_slow + r_cart_center + r_cart_quiet + r_terminate
+        r_cart_center = -0.01 * cart_pos.pow(2)
+        # r_cart_quiet = -0.005 * cart_vel.abs()
+        # Was -10.0; reduced so the policy stops fearing the cart bound
+        # and can explore swinging the cart through ±max_cart_pos for energy pumping.
+        r_terminate = -1.0 * terminated
+        reward = r_upright + r_at_top_slow + r_cart_center + r_terminate
         # -----------------------------------------------------------------
 
         # --- VARIANT: sparse (reward only when both links are near upright)
