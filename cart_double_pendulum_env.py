@@ -44,7 +44,7 @@ class CartDoublePendulumEnvCfg(DirectRLEnvCfg):
     # ---- spaces ----
     # observation_space MUST match the dim returned by _get_observations().
     action_space = 1
-    observation_space = 6
+    observation_space = 8
     state_space = 0
 
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
@@ -129,24 +129,25 @@ class CartDoublePendulumEnv(DirectRLEnv):
         pend_pos = self.joint_pos[:, self._pendulum_dof_idx[0]].unsqueeze(-1)
         pend_vel = self.joint_vel[:, self._pendulum_dof_idx[0]].unsqueeze(-1)
 
-        # --- DEFAULT: 6-D state ----------------------------------------
-        # Angles wrapped to [-pi, pi]. theta2 here is link-2 RELATIVE to link-1.
+        # --- DEFAULT: 8-D sin/cos state (smooth, no wrap discontinuity) ---
+        # Pendulum spins through ±π often during swing-up; wrap_to_pi creates
+        # a sharp input jump at ±π that confuses the policy. sin/cos is C-infinity.
+        theta1 = pole_pos                          # link-1 angle
+        theta2_abs = pole_pos + pend_pos           # link-2 absolute angle
         obs = torch.cat([
             cart_pos, cart_vel,
-            wrap_to_pi(pole_pos), pole_vel,
-            wrap_to_pi(pend_pos), pend_vel,
+            torch.sin(theta1), torch.cos(theta1), pole_vel,
+            torch.sin(theta2_abs), torch.cos(theta2_abs), pend_vel,
         ], dim=-1)
-        # ---------------------------------------------------------------
+        # -------------------------------------------------------------------
 
-        # --- VARIANT: 8-D sin/cos (smooth, no wrap discontinuity) ------
-        # theta1 = pole_pos
-        # theta2_abs = pole_pos + pend_pos          # link-2 absolute angle
+        # --- VARIANT: 6-D raw state (wrapped to [-π, π]) -------------------
         # obs = torch.cat([
         #     cart_pos, cart_vel,
-        #     torch.sin(theta1), torch.cos(theta1), pole_vel,
-        #     torch.sin(theta2_abs), torch.cos(theta2_abs), pend_vel,
+        #     wrap_to_pi(pole_pos), pole_vel,
+        #     wrap_to_pi(pend_pos), pend_vel,
         # ], dim=-1)
-        # ---> set observation_space = 8 in CartDoublePendulumEnvCfg above
+        # ---> set observation_space = 6 in CartDoublePendulumEnvCfg above
 
         return {"policy": obs}
 
