@@ -80,7 +80,15 @@ def main():
 
     # ---- logging ----
     run_name = args_cli.run_name or time.strftime("%Y%m%d-%H%M%S")
-    run_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs", run_name)
+    runs_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs")
+    run_dir = os.path.join(runs_root, run_name)
+    # If the target dir already has event files or checkpoints from a previous
+    # run, append a HHMMSS suffix so each training run lands in its own dir.
+    if os.path.isdir(run_dir) and any(
+        f.startswith("events.out") or f.endswith(".pt") for f in os.listdir(run_dir)
+    ):
+        run_name = f"{run_name}_{time.strftime('%H%M%S')}"
+        run_dir = os.path.join(runs_root, run_name)
     os.makedirs(run_dir, exist_ok=True)
     writer = SummaryWriter(run_dir)
     print(f"[train] logging to {run_dir}", flush=True)

@@ -122,7 +122,17 @@ def cmd_train(conn: socket.socket, args: dict) -> None:
     resume_from = args.get("resume_from")
     run_name = args.get("run_name") or time.strftime("%Y%m%d-%H%M%S")
 
+    # If the target dir already has event files or checkpoints from a previous
+    # run, append a HHMMSS suffix so each training run lands in its own
+    # directory — otherwise tensorboard merges them and the new curve is
+    # buried under stale data, and checkpoints from different runs overwrite
+    # each other.
     run_dir = os.path.join("runs", run_name)
+    if os.path.isdir(run_dir) and any(
+        f.startswith("events.out") or f.endswith(".pt") for f in os.listdir(run_dir)
+    ):
+        run_name = f"{run_name}_{time.strftime('%H%M%S')}"
+        run_dir = os.path.join("runs", run_name)
     os.makedirs(run_dir, exist_ok=True)
 
     ppo = make_ppo(action_std_init)
