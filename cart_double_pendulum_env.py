@@ -173,11 +173,15 @@ class CartDoublePendulumEnv(DirectRLEnv):
         # Both links up -> r_upright = +2.
         r_upright = torch.cos(pole_pos) + torch.cos(theta2_abs)
         both_up = (torch.cos(pole_pos) > 0.95) & (torch.cos(theta2_abs) > 0.95)
+        # NOTE: keep this coefficient small (-0.1). Larger values (e.g. -0.5)
+        # cause the policy to "crawl" — moving fast through upright costs
+        # hundreds of points (v² scales quickly), so the policy gives up on
+        # real swing-up and tries to quasi-statically align the pendulum.
         r_at_top_slow = both_up.float() * (-0.1 * (pole_vel.pow(2) + pend_vel.pow(2)))
         # Explicit +1/step bonus for being tightly upright. Without this the
         # cos shaping flattens near the top and the policy has no strong
         # gradient pulling it to "stay" once it gets there.
-        r_stay_at_top = both_up.float() * 1.0
+        r_stay_at_top = both_up.float() * 2.0
         r_cart_center = -0.01 * cart_pos.pow(2)
         # Smooth boundary repulsion: ~0 in the middle, ramps up sharply near
         # ±max_cart_pos. 4th power keeps it tiny for moderate swings (e.g. at
