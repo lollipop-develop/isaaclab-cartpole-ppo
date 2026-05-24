@@ -171,7 +171,13 @@ class CartDoublePendulumEnv(DirectRLEnv):
         # --- SWING-UP DEFAULT --------------------------------------------
         # cos(angle) is +1 when a link points up, -1 when it hangs down.
         # Both links up -> r_upright = +2.
-        r_upright = torch.cos(pole_pos) + torch.cos(theta2_abs)
+        # NOTE: link-1 weighted 3x link-2 to break a local optimum where the
+        # policy keeps link-2 aligned with link-1 (θ₂=0) without ever swinging
+        # link-1 up. With equal weights, that "shortcut" gives 2·cos(θ₁) — half
+        # the max reward — so the policy stalls there. With 1.5/0.5 weights,
+        # the shortcut maxes at 1.5·cos(θ₁) (i.e. requires link-1 actually up),
+        # making real swing-up the only way to reach max +2.
+        r_upright = 1.5 * torch.cos(pole_pos) + 0.5 * torch.cos(theta2_abs)
         both_up = (torch.cos(pole_pos) > 0.95) & (torch.cos(theta2_abs) > 0.95)
         # NOTE: keep this coefficient small (-0.1). Larger values (e.g. -0.5)
         # cause the policy to "crawl" — moving fast through upright costs

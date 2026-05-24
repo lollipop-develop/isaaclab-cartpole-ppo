@@ -38,8 +38,8 @@ HYPERPARAMS = {
     "K_epochs": 10,
     "eps_clip": 0.2,
     "action_std_init": 0.6,
-    "action_std_decay_rate": 0.025,
-    "min_action_std": 0.05,       # lowered from 0.20 — once swing-up is found, precision matters more than exploration
+    "action_std_decay_rate": 0.015,  # slowed from 0.025 — extend exploration phase to combat local-optimum trap
+    "min_action_std": 0.15,          # raised from 0.05 — keep exploration alive at convergence so the policy can leave local optima
     "action_std_decay_freq": 20,  # iters between action_std decays
     "save_freq": 25,              # iters between checkpoint saves
 }
