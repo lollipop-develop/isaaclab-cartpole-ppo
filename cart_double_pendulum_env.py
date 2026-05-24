@@ -194,6 +194,15 @@ class CartDoublePendulumEnv(DirectRLEnv):
         # cos shaping flattens near the top and the policy has no strong
         # gradient pulling it to "stay" once it gets there.
         r_stay_at_top = both_up.float() * 2.0
+        # Smooth "catch at top" reward. Peak +3/step when BOTH links are near
+        # upright AND moving slowly; decays smoothly with either deviation or
+        # velocity. Designed for the "swings through upright continuously, never
+        # stops" failure mode: provides a gradient from "passing fast" -> "passing
+        # slow" -> "stopping near top" without any cliff. (1 - cos(θ)) is a
+        # bounded smooth angle-deviation measure (0 at upright, 2 at hanging).
+        dev_sq = (1.0 - torch.cos(pole_pos)).pow(2) + (1.0 - torch.cos(theta2_abs)).pow(2)
+        vel_sq = pole_vel.pow(2) + pend_vel.pow(2)
+        r_catch = 3.0 * torch.exp(-dev_sq / 0.5) * torch.exp(-vel_sq / 5.0)
         r_cart_center = -0.01 * cart_pos.pow(2)
         # Smooth boundary repulsion: ~0 in the middle, ramps up sharply near
         # ±max_cart_pos. 4th power keeps it tiny for moderate swings (e.g. at
@@ -205,7 +214,7 @@ class CartDoublePendulumEnv(DirectRLEnv):
         # and can explore swinging the cart through ±max_cart_pos for energy pumping.
         r_terminate = -1.0 * terminated
         reward = (
-            r_upright + r_at_top_slow + r_stay_at_top
+            r_upright + r_at_top_slow + r_stay_at_top + r_catch
             + r_cart_center + r_cart_bound_proximity + r_terminate
         )
         # -----------------------------------------------------------------
