@@ -171,13 +171,19 @@ class CartDoublePendulumEnv(DirectRLEnv):
         # --- SWING-UP DEFAULT --------------------------------------------
         # cos(angle) is +1 when a link points up, -1 when it hangs down.
         # Both links up -> r_upright = +2.
-        # NOTE: link-1 weighted 3x link-2 to break a local optimum where the
-        # policy keeps link-2 aligned with link-1 (θ₂=0) without ever swinging
-        # link-1 up. With equal weights, that "shortcut" gives 2·cos(θ₁) — half
-        # the max reward — so the policy stalls there. With 1.5/0.5 weights,
-        # the shortcut maxes at 1.5·cos(θ₁) (i.e. requires link-1 actually up),
-        # making real swing-up the only way to reach max +2.
-        r_upright = 1.5 * torch.cos(pole_pos) + 0.5 * torch.cos(theta2_abs)
+        #
+        # History: a previous version weighted link-1 3× link-2 (1.5/0.5) to
+        # break a local-optimum trap where the policy aligned link-2 along
+        # link-1 (θ₂=0) without ever swinging link-1 up — symmetric weights
+        # collapse to 2·cos(θ₁) when θ₂=0, giving half the max reward for free.
+        # That asymmetric weighting did its job (link-1 swing-up was learned),
+        # but capped the policy at ≈+300 ep_return because the link-2 gradient
+        # was too weak. Phase B (this commit) restores symmetric weights now
+        # that the policy already keeps link-1 upright; the old shortcut is no
+        # longer attractive because the policy would lose 1.0/step on link-1
+        # for only 1.0/step gain from link-2 alignment (net zero), and lifting
+        # link-2 properly now yields a clean +1.0/step gain on top.
+        r_upright = torch.cos(pole_pos) + torch.cos(theta2_abs)
         both_up = (torch.cos(pole_pos) > 0.95) & (torch.cos(theta2_abs) > 0.95)
         # NOTE: keep this coefficient small (-0.1). Larger values (e.g. -0.5)
         # cause the policy to "crawl" — moving fast through upright costs
