@@ -64,9 +64,9 @@ class CartDoublePendulumEnvCfg(DirectRLEnvCfg):
     )
 
     # ---- reset / termination ----
-    # Widened from 3.0 -> 5.0 so the cart has room to pump energy into the
-    # pendulum during swing-up exploration.
-    max_cart_pos = 5.0  # cart out-of-bounds threshold [m]
+    # Widened 3.0 -> 5.0 -> 7.0. The policy now swings the cart aggressively
+    # enough that 5 m was too tight; cart was hitting the boundary mid-episode.
+    max_cart_pos = 7.0  # cart out-of-bounds threshold [m]
 
     # Initial joint angles, multiplied by pi internally. At joint angle 0 the
     # links point UP (the asset is an *inverted* double pendulum).
@@ -179,11 +179,19 @@ class CartDoublePendulumEnv(DirectRLEnv):
         # gradient pulling it to "stay" once it gets there.
         r_stay_at_top = both_up.float() * 1.0
         r_cart_center = -0.01 * cart_pos.pow(2)
+        # Smooth boundary repulsion: ~0 in the middle, ramps up sharply near
+        # ±max_cart_pos. 4th power keeps it tiny for moderate swings (e.g. at
+        # cart=±3.5 of 7 it's just -0.03) but lethal near the bound (-0.5
+        # at exactly the wall). Pulls the cart back BEFORE termination triggers.
+        r_cart_bound_proximity = -0.5 * (cart_pos / self.cfg.max_cart_pos).pow(4)
         # r_cart_quiet = -0.005 * cart_vel.abs()
         # Was -10.0; reduced so the policy stops fearing the cart bound
         # and can explore swinging the cart through ±max_cart_pos for energy pumping.
         r_terminate = -1.0 * terminated
-        reward = r_upright + r_at_top_slow + r_stay_at_top + r_cart_center + r_terminate
+        reward = (
+            r_upright + r_at_top_slow + r_stay_at_top
+            + r_cart_center + r_cart_bound_proximity + r_terminate
+        )
         # -----------------------------------------------------------------
 
         # --- VARIANT: sparse (reward only when both links are near upright)
