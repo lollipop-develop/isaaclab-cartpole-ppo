@@ -27,11 +27,14 @@ def parse() -> argparse.Namespace:
     pt.add_argument("--rollout_steps", type=int, default=128)
     pt.add_argument("--run_name", type=str, default=None)
     pt.add_argument("--resume_from", type=str, default=None, help="Optional .pt to warm-start from.")
-    pt.add_argument("--action_std_init", type=float, default=0.6)
-    pt.add_argument("--action_std_decay_rate", type=float, default=0.05)
-    pt.add_argument("--min_action_std", type=float, default=0.10)
-    pt.add_argument("--action_std_decay_freq", type=int, default=20)
-    pt.add_argument("--save_freq", type=int, default=25)
+    # Hyperparameter overrides — when omitted, the server falls back to the
+    # env's HYPERPARAMS dict (ppo_cartpole.HYPERPARAMS / ppo_double.HYPERPARAMS).
+    # argparse.SUPPRESS keeps them out of the Namespace unless explicitly set.
+    pt.add_argument("--action_std_init", type=float, default=argparse.SUPPRESS)
+    pt.add_argument("--action_std_decay_rate", type=float, default=argparse.SUPPRESS)
+    pt.add_argument("--min_action_std", type=float, default=argparse.SUPPRESS)
+    pt.add_argument("--action_std_decay_freq", type=int, default=argparse.SUPPRESS)
+    pt.add_argument("--save_freq", type=int, default=argparse.SUPPRESS)
 
     pp = sub.add_parser("play", help="Run a saved policy.")
     pp.add_argument("--checkpoint", type=str, required=True)

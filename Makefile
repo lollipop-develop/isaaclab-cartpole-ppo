@@ -29,6 +29,10 @@ ROLLOUT_STEPS  ?= 256
 SEED           ?= 42
 RUN_NAME       ?=
 RESUME         ?=
+# Optional hyperparameter overrides. When empty, the env's HYPERPARAMS dict
+# is used. Useful when RESUMing to start action_std at the previous run's
+# end value (e.g. 0.15) instead of jumping back to the init default (0.6).
+ACTION_STD_INIT ?=
 
 # --- play defaults -----------------------------------------------------------
 CHECKPOINT     ?=
@@ -87,7 +91,8 @@ train:
 	$(ACTIVATE) && python client.py --socket $(SOCKET) train \
 	    --max_iters $(MAX_ITERS) --rollout_steps $(ROLLOUT_STEPS) \
 	    $(if $(RUN_NAME),--run_name $(RUN_NAME),) \
-	    $(if $(RESUME),--resume_from $(RESUME),)
+	    $(if $(RESUME),--resume_from $(RESUME),) \
+	    $(if $(ACTION_STD_INIT),--action_std_init $(ACTION_STD_INIT),)
 
 play:
 	@if [ ! -S $(SOCKET) ]; then \
