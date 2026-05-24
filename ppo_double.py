@@ -39,7 +39,7 @@ HYPERPARAMS = {
     "eps_clip": 0.2,
     "action_std_init": 0.6,
     "action_std_decay_rate": 0.025,
-    "min_action_std": 0.20,
+    "min_action_std": 0.05,       # lowered from 0.20 — once swing-up is found, precision matters more than exploration
     "action_std_decay_freq": 20,  # iters between action_std decays
     "save_freq": 25,              # iters between checkpoint saves
 }

@@ -174,12 +174,16 @@ class CartDoublePendulumEnv(DirectRLEnv):
         r_upright = torch.cos(pole_pos) + torch.cos(theta2_abs)
         both_up = (torch.cos(pole_pos) > 0.95) & (torch.cos(theta2_abs) > 0.95)
         r_at_top_slow = both_up.float() * (-0.1 * (pole_vel.pow(2) + pend_vel.pow(2)))
+        # Explicit +1/step bonus for being tightly upright. Without this the
+        # cos shaping flattens near the top and the policy has no strong
+        # gradient pulling it to "stay" once it gets there.
+        r_stay_at_top = both_up.float() * 1.0
         r_cart_center = -0.01 * cart_pos.pow(2)
         # r_cart_quiet = -0.005 * cart_vel.abs()
         # Was -10.0; reduced so the policy stops fearing the cart bound
         # and can explore swinging the cart through ±max_cart_pos for energy pumping.
         r_terminate = -1.0 * terminated
-        reward = r_upright + r_at_top_slow + r_cart_center + r_terminate
+        reward = r_upright + r_at_top_slow + r_stay_at_top + r_cart_center + r_terminate
         # -----------------------------------------------------------------
 
         # --- VARIANT: sparse (reward only when both links are near upright)
