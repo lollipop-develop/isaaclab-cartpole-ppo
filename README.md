@@ -1,20 +1,19 @@
 # Isaac Lab Cartpole + PPO
 
-A minimal cartpole RL playground built on **NVIDIA Isaac Lab**, with a small **PPO** implementation adapted from [nikhilbarhate99/PPO-PyTorch](https://github.com/nikhilbarhate99/PPO-PyTorch) and vectorized to use Isaac Lab's parallel envs.
+A minimal **single cartpole** RL playground built on **NVIDIA Isaac Lab**, with a small **PPO** implementation adapted from [nikhilbarhate99/PPO-PyTorch](https://github.com/nikhilbarhate99/PPO-PyTorch) and vectorized to use Isaac Lab's parallel envs.
 
-Two environments are included: a single cartpole (`cartpole`) and an underactuated cart + double pendulum (`double`), both configured for **swing-up**. Pick one at server-startup time with `ENV=...`.
+A classic 1-link cartpole: cart on a 1-D rail with one pole. The default configuration is **swing-up** (pole starts hanging straight down); the policy commands a horizontal force on the cart to swing the pole upright and balance it.
 
 A **persistent-server** workflow lets you boot Isaac Sim once and run many `train` / `play` commands against the same loaded simulator — Ctrl+C interrupts a single command without tearing the simulator down.
+
+This repo was previously a monorepo containing both single-cartpole and cart double-pendulum projects. As of v2 they live in separate repos for clarity; the double-pendulum version (and the documented journey of solving the much harder underactuated double-pendulum swing-up) is at [`isaaclab-cart-double-pendulum-ppo`](https://github.com/lollipop-develop/isaaclab-cart-double-pendulum-ppo).
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `cartpole_env.py` | `DirectRLEnv` subclass with banner-marked **STATE** and **REWARD** sections |
-| `cart_double_pendulum_env.py` | Underactuated cart + double-pendulum `DirectRLEnv` (swing-up) |
-| `env_registry.py` | Maps each env name to its env class, cfg class, and PPO module |
-| `ppo_cartpole.py` | PPO algorithm + `HYPERPARAMS` for the single cartpole |
-| `ppo_double.py` | PPO algorithm + `HYPERPARAMS` for the double pendulum |
+| `env.py` | `DirectRLEnv` subclass with banner-marked **STATE** and **REWARD** sections |
+| `ppo.py` | PPO algorithm + `HYPERPARAMS` dict |
 | `server.py` | Long-running process: boots Isaac Sim once, listens on a Unix socket |
 | `client.py` | Thin stdlib-only client that sends JSON commands to the server |
 | `train.py` / `play.py` | Standalone runners (boot Isaac Sim per call) — kept for one-shot use |
@@ -33,66 +32,55 @@ This repo does *not* ship Isaac Lab itself; install it separately following the 
 
 ### 1. Boot the persistent server (terminal A)
 ```bash
-make env                  # single cartpole, GUI viewport
-make env ENV=double       # cart + double pendulum
+make env                  # GUI viewport
 make env HEADLESS=1       # no GUI (faster startup, headless training)
 make env NUM_ENVS=512     # more parallel envs
 ```
 
-The server loads ONE environment for its lifetime. To switch envs, stop the
-server (Ctrl+C or `make kill-server`) and boot it again with a different `ENV`.
-Wait until you see `[server] listening on .server.sock`.
-
 ### 2. Train (terminal B)
 ```bash
 make train                                     # default: 200 iters
-make train MAX_ITERS=400 RUN_NAME=swingup_v1   # named run
-make train RESUME=runs/swingup_v1/policy_final.pt MAX_ITERS=200
+make train MAX_ITERS=300 RUN_NAME=balance_1    # named run
+make train RESUME=runs/balance_1/policy_final.pt MAX_ITERS=200 ACTION_STD_INIT=0.15
 ```
 
-Ctrl+C here kills the client; the server stays alive for the next command.
+Ctrl+C kills the client; the server stays alive.
 
 ### 3. Play a trained policy (terminal B)
 ```bash
 make play                                                     # newest checkpoint
-make play CHECKPOINT=runs/swingup_v1/policy_final.pt          # specific
+make play CHECKPOINT=runs/balance_1/policy_final.pt           # specific
 make play PLAY_DET=1                                          # deterministic
 ```
 
 ### 4. Watch metrics
 ```bash
-make tensorboard      # opens on http://localhost:6006
+make tensorboard      # http://localhost:6006
 ```
 
 ### 5. Shut the server down
 - Ctrl+C in terminal A, or
-- `make kill-server` from anywhere (uses SIGKILL because Isaac Sim absorbs softer signals)
+- `make kill-server` from anywhere
 
 ## Tweaking the environment
 
-Open `cartpole_env.py` and look for the banner comments:
+Open `env.py` and look for the banner comments:
 
 ```python
 # ============================== STATE =================================
 def _get_observations(self):
     ...
-```
 
-```python
 # ============================== REWARD ================================
 def _get_rewards(self):
     ...
 ```
 
-Each section ships with the swing-up default plus a couple of commented alternatives (5-D state with sin/cos, sparse reward, balance variant, etc.).
+Each section ships with the default plus a couple of commented alternatives. **Important:** if you change the state dim, update `observation_space` in `CartpoleEnvCfg` at the top of the same file.
 
-**Important:** if you change the state dim, update `observation_space` in `CartpoleEnvCfg` at the top of the same file.
-
-After editing, restart the server (Ctrl+C → `make env`) to pick up the change. Hot reload is not supported.
+After editing, restart the server (Ctrl+C → `make env`) to pick up the change.
 
 ## Standalone scripts (no server)
-
-For one-shot or CI use you can bypass the server entirely:
 
 ```bash
 make smoke         # 5-iter sanity check
@@ -104,10 +92,9 @@ Each call boots Isaac Sim from scratch (~30 s).
 
 ## Algorithm notes
 
-- **PPO** uses Monte-Carlo returns (no GAE) to stay close to the reference implementation. Cartpole converges fine without GAE; longer-horizon tasks would benefit from adding it.
-- **Continuous action only** (1-D force on the cart slider). The policy outputs a `tanh`-bounded mean and adds Gaussian noise with a decaying std.
-- **Per-env PPO** — `ppo_cartpole.py` and `ppo_double.py` are independent copies of the algorithm, each with its own `HYPERPARAMS` dict (lr, gamma, K_epochs, `action_std_decay_*`, etc.). Edit one without affecting the other; `--env` selects which.
-- **Vectorized rollout buffer** stores tensors of shape `(T, N, …)` where T is the rollout horizon and N is `num_envs`. Discounted returns are computed per-env so envs that reset mid-rollout don't bleed across episodes.
+- **PPO** uses Monte-Carlo returns (no GAE) to stay close to the reference implementation. Cartpole converges fine without GAE; the harder double-pendulum sibling uses GAE.
+- **Continuous action only** (1-D force on the cart slider). The policy outputs a `tanh`-bounded mean and adds Gaussian noise with a decaying std (`action_std_decay_*` in `ppo.HYPERPARAMS`).
+- **Vectorized rollout buffer** stores tensors of shape `(T, N, …)` where T is the rollout horizon and N is `num_envs`. Returns computed per-env so envs that reset mid-rollout don't bleed across episodes.
 - **No `gymnasium` install needed** — Isaac Lab's `DirectRLEnv` satisfies the interface internally; observations and rewards are torch tensors on the GPU.
 
 ## Layout of `runs/`
@@ -123,3 +110,4 @@ Pass any of these `.pt` files to `make play CHECKPOINT=...` to roll out that sna
 
 - PPO algorithm adapted from [nikhilbarhate99/PPO-PyTorch](https://github.com/nikhilbarhate99/PPO-PyTorch).
 - Cartpole asset and base `DirectRLEnv` structure from [NVIDIA Isaac Lab](https://github.com/isaac-sim/IsaacLab).
+- Sibling repo for the (much harder) cart double pendulum: [`isaaclab-cart-double-pendulum-ppo`](https://github.com/lollipop-develop/isaaclab-cart-double-pendulum-ppo).

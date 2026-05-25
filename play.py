@@ -11,13 +11,11 @@ import argparse
 
 from isaaclab.app import AppLauncher
 
-parser = argparse.ArgumentParser(description="Play a trained PPO policy on Isaac Lab cartpole.")
+parser = argparse.ArgumentParser(description="Play a trained PPO policy on the single cartpole.")
 parser.add_argument("--checkpoint", type=str, required=True, help="Path to .pt checkpoint.")
 parser.add_argument("--num_envs", type=int, default=16, help="Number of parallel envs to roll out.")
 parser.add_argument("--num_steps", type=int, default=1000, help="Total env steps to run.")
 parser.add_argument("--deterministic", action="store_true", help="Use action mean instead of sampling.")
-parser.add_argument("--env", default="cartpole", choices=["cartpole", "double"],
-                    help="Which environment to run.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -26,14 +24,14 @@ simulation_app = app_launcher.app
 
 import torch  # noqa: E402
 
-from env_registry import ENVS  # noqa: E402
+import ppo as ppo_mod  # noqa: E402
+from env import CartpoleEnv, CartpoleEnvCfg  # noqa: E402
 
 
 def main():
-    env_cls, cfg_cls, ppo_mod = ENVS[args_cli.env]
-    cfg = cfg_cls()
+    cfg = CartpoleEnvCfg()
     cfg.scene.num_envs = args_cli.num_envs
-    env = env_cls(cfg=cfg, render_mode=None)
+    env = CartpoleEnv(cfg=cfg, render_mode=None)
     device = env.device
 
     # Throwaway hyperparameters — play only loads weights, never trains.

@@ -1,4 +1,4 @@
-# Makefile for cartpole_ws PPO + Isaac Lab experiments.
+# Makefile for the single cartpole + PPO project.
 #
 # Workflow:
 #   1. `make env`            in terminal A — starts Isaac Sim + server (persistent)
@@ -8,8 +8,8 @@
 #
 # Override variables on the command line, e.g.:
 #   make env NUM_ENVS=512
-#   make train MAX_ITERS=400 RUN_NAME=swingup_1
-#   make play CHECKPOINT=runs/swingup_1/policy_final.pt PLAY_DET=1
+#   make train MAX_ITERS=300 RUN_NAME=balance_1
+#   make play CHECKPOINT=runs/balance_1/policy_final.pt PLAY_DET=1
 
 SHELL := /bin/bash
 
@@ -21,17 +21,13 @@ ACTIVATE       := source $(CONDA_SH) && conda activate $(CONDA_ENV)
 SOCKET         ?= .server.sock
 
 # --- server / training defaults ----------------------------------------------
-# Environment to load: cartpole | double
-ENV            ?= cartpole
 NUM_ENVS       ?= 256
 MAX_ITERS      ?= 200
-ROLLOUT_STEPS  ?= 256
+ROLLOUT_STEPS  ?= 128
 SEED           ?= 42
 RUN_NAME       ?=
 RESUME         ?=
-# Optional hyperparameter overrides. When empty, the env's HYPERPARAMS dict
-# is used. Useful when RESUMing to start action_std at the previous run's
-# end value (e.g. 0.15) instead of jumping back to the init default (0.6).
+# Optional hyperparameter override. When empty, ppo.HYPERPARAMS is used.
 ACTION_STD_INIT ?=
 
 # --- play defaults -----------------------------------------------------------
@@ -49,7 +45,6 @@ HEADLESS_FLAG  := $(if $(HEADLESS),--headless,)
 help:
 	@echo "Persistent server workflow:"
 	@echo "  make env              - boot Isaac Sim + server (foreground, GUI on)"
-	@echo "  make env ENV=double   - boot the server with the double-pendulum env"
 	@echo "  make env HEADLESS=1   - boot server headless"
 	@echo "  make train            - send a train command to running server"
 	@echo "  make play             - send a play command to running server"
@@ -64,7 +59,7 @@ help:
 	@echo "  make tensorboard      - tensorboard on runs/"
 	@echo "  make clean | clean-runs | clean-pyc"
 	@echo ""
-	@echo "Vars: ENV NUM_ENVS MAX_ITERS ROLLOUT_STEPS SEED RUN_NAME RESUME"
+	@echo "Vars: NUM_ENVS MAX_ITERS ROLLOUT_STEPS SEED RUN_NAME RESUME ACTION_STD_INIT"
 	@echo "      CHECKPOINT PLAY_STEPS PLAY_DET HEADLESS"
 	@echo "      ISAACLAB CONDA_ENV SOCKET"
 
@@ -78,7 +73,7 @@ env:
 	    echo "       run 'make kill-server' first if needed."; \
 	fi
 	$(ACTIVATE) && $(ISAACLAB) -p server.py $(HEADLESS_FLAG) \
-	    --socket $(SOCKET) --num_envs $(NUM_ENVS) --seed $(SEED) --env $(ENV)
+	    --socket $(SOCKET) --num_envs $(NUM_ENVS) --seed $(SEED)
 
 env-headless:
 	$(MAKE) env HEADLESS=1
@@ -114,9 +109,6 @@ play:
 
 kill-server:
 	@# Isaac Sim absorbs SIGTERM/SIGINT in some code paths — use SIGKILL.
-	@# The .* matches whether or not --headless sits between server.py and
-	@# --socket; this single pattern covers both the python process and the
-	@# isaaclab.sh wrapper (both command lines contain server.py ... --socket).
 	-pkill -9 -f "server.py.*--socket $(SOCKET)" || true
 	-rm -f $(SOCKET)
 	@echo "[make] killed server processes and removed $(SOCKET)"
@@ -127,12 +119,12 @@ kill-server:
 
 smoke:
 	$(ACTIVATE) && $(ISAACLAB) -p train.py --headless \
-	    --num_envs 64 --max_iters 5 --rollout_steps 64 --env $(ENV)
+	    --num_envs 64 --max_iters 5 --rollout_steps 64
 
 train-once:
 	$(ACTIVATE) && $(ISAACLAB) -p train.py $(HEADLESS_FLAG) \
 	    --num_envs $(NUM_ENVS) --max_iters $(MAX_ITERS) \
-	    --rollout_steps $(ROLLOUT_STEPS) --seed $(SEED) --env $(ENV) \
+	    --rollout_steps $(ROLLOUT_STEPS) --seed $(SEED) \
 	    $(if $(RUN_NAME),--run_name $(RUN_NAME),)
 
 play-once:
@@ -147,7 +139,7 @@ play-once:
 	echo "[make] using checkpoint: $$CKPT"; \
 	$(ACTIVATE) && $(ISAACLAB) -p play.py $(HEADLESS_FLAG) \
 	    --checkpoint "$$CKPT" --num_envs $(NUM_ENVS) --num_steps $(PLAY_STEPS) \
-	    --env $(ENV) $(if $(PLAY_DET),--deterministic,)
+	    $(if $(PLAY_DET),--deterministic,)
 
 # =====================================================================
 # Utility

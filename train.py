@@ -16,14 +16,12 @@ import argparse
 # ---- AppLauncher must be set up BEFORE any other isaaclab/isaacsim import ----
 from isaaclab.app import AppLauncher
 
-parser = argparse.ArgumentParser(description="Train PPO on Isaac Lab cartpole.")
+parser = argparse.ArgumentParser(description="Train PPO on Isaac Lab single cartpole.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of parallel envs.")
 parser.add_argument("--max_iters", type=int, default=200, help="Number of PPO updates.")
 parser.add_argument("--rollout_steps", type=int, default=128, help="Env steps per update (per env).")
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--run_name", type=str, default=None, help="Subdir under runs/. Defaults to timestamp.")
-parser.add_argument("--env", default="cartpole", choices=["cartpole", "double"],
-                    help="Which environment to train on.")
 parser.add_argument("--play_after", action="store_true",
                     help="After training, roll out the freshly trained policy in the same process (no app restart).")
 parser.add_argument("--play_steps", type=int, default=1500,
@@ -43,27 +41,27 @@ import time  # noqa: E402
 import torch  # noqa: E402
 from torch.utils.tensorboard import SummaryWriter  # noqa: E402
 
-from env_registry import ENVS  # noqa: E402
+import ppo as ppo_mod  # noqa: E402  -- exposes PPO, HYPERPARAMS
+from env import CartpoleEnv, CartpoleEnvCfg  # noqa: E402
 
 
-# PPO hyperparameters are per-env — see the HYPERPARAMS dict in ppo_cartpole.py
-# / ppo_double.py. LOG_FREQ below is display-only and not env-specific.
+# PPO hyperparameters live in ppo.py's HYPERPARAMS dict. LOG_FREQ is
+# display-only and not really a hyperparameter.
 LOG_FREQ = 1  # iters between stdout / tensorboard lines
 
 
 def main():
     torch.manual_seed(args_cli.seed)
 
-    # ---- env (and its PPO module) ----
-    env_cls, cfg_cls, ppo_mod = ENVS[args_cli.env]
-    cfg = cfg_cls()
+    # ---- env ----
+    cfg = CartpoleEnvCfg()
     cfg.scene.num_envs = args_cli.num_envs
-    env = env_cls(cfg=cfg, render_mode=None)
+    env = CartpoleEnv(cfg=cfg, render_mode=None)
     device = env.device
-    print(f"[train] env={args_cli.env}  num_envs={args_cli.num_envs}  device={device}  "
+    print(f"[train] num_envs={args_cli.num_envs}  device={device}  "
           f"obs={cfg.observation_space}  act={cfg.action_space}", flush=True)
 
-    # ---- PPO agent (hyperparameters from the env's ppo module) ----
+    # ---- PPO agent ----
     hp = ppo_mod.HYPERPARAMS
     ppo = ppo_mod.PPO(
         state_dim=cfg.observation_space,

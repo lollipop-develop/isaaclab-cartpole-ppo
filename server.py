@@ -27,12 +27,10 @@ from isaaclab.app import AppLauncher
 
 # ---- CLI ----
 _here = os.path.dirname(os.path.abspath(__file__))
-parser = argparse.ArgumentParser(description="Persistent Isaac Lab + PPO server.")
+parser = argparse.ArgumentParser(description="Persistent Isaac Lab + PPO server (single cartpole).")
 parser.add_argument("--socket", default=os.path.join(_here, ".server.sock"))
 parser.add_argument("--num_envs", type=int, default=256)
 parser.add_argument("--seed", type=int, default=42)
-parser.add_argument("--env", default="cartpole", choices=["cartpole", "double"],
-                    help="Which environment to load for this server session.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -43,18 +41,18 @@ simulation_app = app_launcher.app
 import torch  # noqa: E402
 from torch.utils.tensorboard import SummaryWriter  # noqa: E402
 
-from env_registry import ENVS  # noqa: E402
+import ppo as _ppo_mod  # noqa: E402  -- exposes PPO, HYPERPARAMS
+from env import CartpoleEnv, CartpoleEnvCfg  # noqa: E402
 
 torch.manual_seed(args_cli.seed)
 
-# ---- Build env once (each env carries its own PPO module) ----
-_env_cls, _cfg_cls, _ppo_mod = ENVS[args_cli.env]
-cfg = _cfg_cls()
+# ---- Build env once ----
+cfg = CartpoleEnvCfg()
 cfg.scene.num_envs = args_cli.num_envs
-env = _env_cls(cfg=cfg, render_mode=None)
+env = CartpoleEnv(cfg=cfg, render_mode=None)
 device = env.device
 print(
-    f"[server] env={args_cli.env} ready  num_envs={args_cli.num_envs}  device={device}  "
+    f"[server] ready  num_envs={args_cli.num_envs}  device={device}  "
     f"obs={cfg.observation_space}  act={cfg.action_space}  "
     f"episode_s={cfg.episode_length_s}",
     flush=True,
